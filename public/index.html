@@ -13,17 +13,23 @@
 
     <div class="max-w-3xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6 md:p-8">
         <h2 class="text-2xl font-bold text-gray-800 mb-2">Telegram Excel Sender</h2>
-        <p class="text-gray-600 mb-6">Upload an Excel file containing columns: <code class="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono text-purple-600">BotToken</code>, <code class="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono text-purple-600">ChatID</code>, and <code class="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono text-purple-600">Message</code>.</p>
+        <p class="text-gray-600 mb-6">Your Excel file should have columns <code class="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono text-purple-600">BOT_TOKEN</code> and <code class="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono text-purple-600">CHAD_ID</code>.</p>
 
         <!-- File Upload Area -->
         <div class="mb-6">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Select Excel File (.xlsx, .xls)</label>
+            <label class="block text-sm font-medium text-gray-700 mb-2">1. Select Excel File (.xlsx, .xls)</label>
             <input type="file" id="excelFile" accept=".xlsx, .xls" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border border-gray-300 rounded-lg p-2" />
         </div>
 
-        <!-- Preview / Status Area -->
+        <!-- Status Area -->
         <div id="statusArea" class="hidden mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-sm">
-            Loaded <span id="rowCount" class="font-bold">0</span> rows from Excel. Ready to send!
+            Loaded <span id="rowCount" class="font-bold">0</span> rows from Excel[cite: 1]. Ready to send!
+        </div>
+
+        <!-- Message Input Area -->
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-700 mb-2">2. Enter Message to Send</label>
+            <textarea id="messageText" rows="4" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Type your message here..."></textarea>
         </div>
 
         <!-- Send Button -->
@@ -35,7 +41,7 @@
         <div class="mt-8">
             <h3 class="text-lg font-semibold text-gray-800 mb-3">Live Log</h3>
             <div id="logBox" class="bg-gray-900 text-green-400 font-mono text-xs p-4 rounded-lg h-64 overflow-y-auto space-y-1">
-                <span class="text-gray-500"># Waiting for file upload...</span>
+                <span class="text-gray-500"># Waiting for file upload and message...</span>
             </div>
         </div>
     </div>
@@ -54,18 +60,16 @@
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
                     
-                    // Read the first sheet
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
                     
-                    // Convert to JSON
                     excelData = XLSX.utils.sheet_to_json(worksheet);
 
                     if (excelData.length > 0) {
                         document.getElementById('rowCount').textContent = excelData.length;
                         document.getElementById('statusArea').classList.remove('hidden');
                         document.getElementById('sendBtn').removeAttribute('disabled');
-                        logMessage(`[Info] Successfully loaded ${excelData.length} rows from Excel file.`);
+                        logMessage(`[Info] Successfully loaded ${excelData.length} rows from Excel file[cite: 1].`);
                     } else {
                         alert("The Excel file appears to be empty.");
                     }
@@ -80,18 +84,24 @@
         async function processAndSend() {
             if (excelData.length === 0) return;
 
+            const message = document.getElementById('messageText').value.trim();
+            if (!message) {
+                alert("Please enter a message to send.");
+                return;
+            }
+
             const sendBtn = document.getElementById('sendBtn');
             sendBtn.setAttribute('disabled', 'true');
             logMessage("[Info] Starting batch send process...");
 
             for (let i = 0; i < excelData.length; i++) {
                 const row = excelData[i];
-                const botToken = String(row.BotToken || '').trim();
-                const chatId = String(row.ChatID || '').trim();
-                const message = String(row.Message || '').trim();
+                // Support BOT_TOKEN, CHAD_ID, or fallback variations just in case
+                const botToken = String(row.BOT_TOKEN || row.BotToken || '').trim();
+                const chatId = String(row.CHAD_ID || row.CHAT_ID || row.ChatID || '').trim();
 
-                if (!botToken || !chatId || !message) {
-                    logMessage(`[Warning] Row ${i + 1}: Missing BotToken, ChatID, or Message. Skipped.`);
+                if (!botToken || !chatId) {
+                    logMessage(`[Warning] Row ${i + 1}: Missing BOT_TOKEN or CHAD_ID. Skipped.`);
                     continue;
                 }
 
@@ -119,7 +129,7 @@
                     logMessage(`[Network Error] Row ${i + 1}: ${err.message}`);
                 }
 
-                // Add a small delay between requests to avoid Telegram rate limits
+                // Small delay to prevent rate limits
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
 
