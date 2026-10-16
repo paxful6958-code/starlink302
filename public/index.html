@@ -13,7 +13,7 @@
 
     <div class="max-w-3xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-6 md:p-8">
         <h2 class="text-2xl font-bold text-gray-800 mb-2">Telegram Excel Sender</h2>
-        <p class="text-gray-600 mb-6">Your Excel file should have columns <code class="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono text-purple-600">BOT_TOKEN</code> and <code class="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono text-purple-600">CHAD_ID</code>.</p>
+        <p class="text-gray-600 mb-6">Upload your <code class="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono text-purple-600">Telegram bot (2).xlsx</code> file (Column A: Bot Token, Column B: Chat ID).</p>
 
         <!-- File Upload Area -->
         <div class="mb-6">
@@ -23,7 +23,7 @@
 
         <!-- Status Area -->
         <div id="statusArea" class="hidden mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-sm">
-            Loaded <span id="rowCount" class="font-bold">0</span> rows from Excel[cite: 1]. Ready to send!
+            Loaded <span id="rowCount" class="font-bold">0</span> entries from Excel. Ready to send!
         </div>
 
         <!-- Message Input Area -->
@@ -47,7 +47,7 @@
     </div>
 
     <script>
-        let excelData = [];
+        let excelRows = [];
 
         // Listen for file upload
         document.getElementById('excelFile').addEventListener('change', function(e) {
@@ -63,15 +63,19 @@
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
                     
-                    excelData = XLSX.utils.sheet_to_json(worksheet);
+                    // Parse sheet as an array of arrays (header: 1) since there are no column names
+                    excelRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-                    if (excelData.length > 0) {
-                        document.getElementById('rowCount').textContent = excelData.length;
+                    // Filter out completely empty rows
+                    excelRows = excelRows.filter(row => row && row.length >= 2 && row[0] && row[1]);
+
+                    if (excelRows.length > 0) {
+                        document.getElementById('rowCount').textContent = excelRows.length;
                         document.getElementById('statusArea').classList.remove('hidden');
                         document.getElementById('sendBtn').removeAttribute('disabled');
-                        logMessage(`[Info] Successfully loaded ${excelData.length} rows from Excel file[cite: 1].`);
+                        logMessage(`[Info] Successfully loaded ${excelRows.length} entries from Excel file.`);
                     } else {
-                        alert("The Excel file appears to be empty.");
+                        alert("The Excel file appears to be empty or formatted incorrectly.");
                     }
                 } catch (error) {
                     alert("Error parsing Excel file: " + error.message);
@@ -82,7 +86,7 @@
 
         // Loop through data and send requests to Telegram API
         async function processAndSend() {
-            if (excelData.length === 0) return;
+            if (excelRows.length === 0) return;
 
             const message = document.getElementById('messageText').value.trim();
             if (!message) {
@@ -94,14 +98,13 @@
             sendBtn.setAttribute('disabled', 'true');
             logMessage("[Info] Starting batch send process...");
 
-            for (let i = 0; i < excelData.length; i++) {
-                const row = excelData[i];
-                // Support BOT_TOKEN, CHAD_ID, or fallback variations just in case
-                const botToken = String(row.BOT_TOKEN || row.BotToken || '').trim();
-                const chatId = String(row.CHAD_ID || row.CHAT_ID || row.ChatID || '').trim();
+            for (let i = 0; i < excelRows.length; i++) {
+                const row = excelRows[i];
+                const botToken = String(row[0] || '').trim(); // Column A
+                const chatId = String(row[1] || '').trim();   // Column B
 
                 if (!botToken || !chatId) {
-                    logMessage(`[Warning] Row ${i + 1}: Missing BOT_TOKEN or CHAD_ID. Skipped.`);
+                    logMessage(`[Warning] Row ${i + 1}: Missing token or chat ID. Skipped.`);
                     continue;
                 }
 
@@ -129,8 +132,8 @@
                     logMessage(`[Network Error] Row ${i + 1}: ${err.message}`);
                 }
 
-                // Small delay to prevent rate limits
-                await new Promise(resolve => setTimeout(resolve, 500));
+                // Small delay to prevent hitting Telegram rate limits
+                await new Promise(resolve => setTimeout(resolve, 300));
             }
 
             logMessage("[Info] Batch process completed.");
